@@ -1,0 +1,40 @@
+#sct1{
+    grid-area: sct1;
+    width: 100vw;
+    height: 700px;
+    display: flex;
+    flex-direction: row;
+}
+
+#img1{
+    width: 50%;
+    height: 80%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#img1 img{
+    width: 45%;
+}
+
+#txt1{
+    width: 50%;
+    height: 80%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#txt1 .entrada{
+    width: 80%;
+    height: 70%;
+    margin-right: 180px;
+    padding-top: 100px;
+    /* background: #000; */
+}
+
+.entrada h2{
+    font-size: 2em;
+    margin-bottom: 10px;
+}
