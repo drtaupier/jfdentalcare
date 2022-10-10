@@ -11,3 +11,4 @@ status_id INT REFERENCES user_status(status_id) DEFAULT 1,
 dob DATE NOT NULL,
 role_id INT REFERENCES user_role(role_id) DEFAULT 2);
 
+ALTER TABLE users ALTER COLUMN dob DROP NOT NULL;
