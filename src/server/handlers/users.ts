@@ -16,9 +16,27 @@ const index = async (_req: Request, res: Response) => {
     }
 };
 
+const activeUsers = async (_req: Request, res: Response) => {
+    try {
+        const users = await store.activeUsers();
+        res.status(200).json(users);
+    } catch (error) {
+        res.status(400).json(error)
+    }
+};
+
+const inactiveUsers = async (_req: Request, res: Response) => {
+    try {
+        const users = await store.inactiveUsers();
+        res.status(200).json(users);
+    } catch (error) {
+        res.status(400).json(error)
+    }
+};
+
 const show = async (req: Request, res: Response) => {
     try {
-        const user = await store.show(req.params.user_id);
+        const user = await store.show(req.params.users_id);
         res.json(user);
     } catch (error) {
         res.status(400).json(error);
@@ -45,10 +63,19 @@ const create = async (req: Request, res: Response) => {
 
 const destroy = async (req: Request, res: Response) =>{
     try {
-        const user = await store.delete(req.params.user_id);
+        const user = await store.delete(req.params.users_id);
         res.status(200).json(user);
     } catch (error) {
         res.status(400).json(error);        
+    }
+}
+
+const active = async (req: Request, res: Response) => {
+    try {
+        const user = await store.active(req.params.users_id);
+        res.status(200).json(user);
+    } catch (error) {
+        res.status(400).json(error)
     }
 }
 
@@ -56,22 +83,25 @@ const authenticate = async (req: Request, res: Response) => {
 	const user: User = {
 		username: req.body.username,
 		password: req.body.password,
-	};
+    };
 	try {
 		const u = await store.authenticate(user.username, user.password);
 		const token = jwt.sign({ user: u }, process.env.TOKEN_SECRET as Secret);
 		res.json(token);
 	} catch (error) {
-		res.status(401).json({ error });
+		res.status(401).json(error);
 	}
 };
 
 const userRoutes = (app: express.Application): void => {
-    app.get('/users', index);
-    app.get('/users/:user_id', show);
-    app.post('/user/register', create);
-    app.delete('/user/:user_id', destroy);
-    app.post('/user/login', authenticate);
+    app.get('/users', verifyAuthToken, index); // Muestra todos los usuarios
+    app.get('/user/active', verifyAuthToken, activeUsers) // Muestra los usuarios activos
+    app.get('/user/inactive', verifyAuthToken, inactiveUsers) // Muestra los usuarios inactivos
+    app.get('/users/:users_id', verifyAuthToken, show); // Muestra un usuario específico mediante el users_id
+    app.post('/user/register', verifyAuthToken, create); // Crea Usuarios
+    app.post('/user/:users_id', verifyAuthToken, destroy); // Elimina un usuario (lo pone inactivo)
+    app.post('/users/:users_id', verifyAuthToken, active); // Activa un usuario que haya sido eliminado
+    app.post('/login', authenticate); // Hace la autenticación de nuestras credenciales
 }
 
 export default userRoutes;
