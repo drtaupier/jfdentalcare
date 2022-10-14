@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import verifyAuthToken from '../middlewares/auth';
 import { Message, MessageStore } from '../models/message';
 
 const store = new MessageStore();
@@ -29,30 +30,20 @@ const create = async (req: Request, res: Response) => {
             lastname: body.lastname,
             phone: body.phone,
             email: body.email,
-            possible_appointment: body.possible_appointment,
+            possible_appt: body.possible_appt,
             message: body.message
         }
         const newMessage = await store.create(message);
-        res.status(200).json(newMessage);
+        res.status(201).json(newMessage);
     } catch (error) {
         res.status(400).json(error)
     }
 };
 
-const destroy = async (req: Request, res: Response) => {
-    try {
-        const message = await store.delete(req.params.message_id);
-        res.status(200).json(message);
-    } catch (error){
-        res.status(400).json(error);
-    }
-}
-
 const messageRoutes = (app: express.Application): void => {
-    app.get('/messages', index);
-    app.get('/messages/:message_id', show);
-    app.post('/message/sendingmessage', create);
-    app.delete('/message/:message_id', destroy);
+    app.get('/messages', verifyAuthToken ,index); //Muestra todos los mensajes
+    app.get('/messages/:message_id', verifyAuthToken, show); //Muestra un mensaje específico por el ID
+    app.post('/message/sendingmessage', create); //Pacientes envian mensajes     
 }
 
 export default messageRoutes;
