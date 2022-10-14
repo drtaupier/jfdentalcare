@@ -1,0 +1,1 @@
+DROP TABLE possible_appts;
