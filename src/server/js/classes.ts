@@ -1,7 +1,3 @@
-interface UI {
-        
-}
-
 class UI {
     footer = () => {
         const today = new Date;

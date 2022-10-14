@@ -1,8 +1,9 @@
 import UI from './classes';
 
-window.onload = ()=>{
+if(document.readyState === "complete"){
     const ui = new UI();
     ui.stickyNav()
     ui.footer()
 }
+
 
