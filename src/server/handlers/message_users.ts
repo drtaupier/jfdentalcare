@@ -72,7 +72,7 @@ const create = async (req: Request, res: Response) => {
         const message_user: Message_users = {
             message_id: req.body.message_id,
             status_id: req.body.status_id,
-            users_id: req.body.users_id
+            user_id: req.body.user_id
         }
         const newMessage_users = await store.create(message_user);
         res.status(201).json(newMessage_users);
@@ -87,7 +87,7 @@ const edit = async (req: Request, res: Response) => {
             message_users_id: req.body.message_users_id,
             // message_id: req.body.message_id,
             status_id: req.body.status_id,
-            users_id: req.body.users_id
+            user_id: req.body.user_id
         }
         const newStatus = await store.edit(message_user);
         res.status(200).json(newStatus);

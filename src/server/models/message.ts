@@ -16,7 +16,7 @@ export class MessageStore {
     async index(): Promise<Message[]>{
         try {
             const conn = await Client.connect();
-            const sql = 'SELECT m.firstname, m.lastname, m.phone, m.email, pa.possible_appt , m.message, m.fecha_mensaje FROM messages AS m INNER JOIN possible_appts AS pa ON m.possible_appt=pa.possible_appt_id INNER JOIN message_status AS ms ON m.STATUS_ID=ms.status_id';
+            const sql = 'SELECT m.firstname, m.lastname, m.phone, m.email, pa.possible_appt , m.message, m.fecha_mensaje FROM messages AS m INNER JOIN possible_appts AS pa ON m.possible_appt=pa.possible_appt_id';
             const result = await conn.query(sql);
             conn.release();
             return result.rows;
@@ -28,7 +28,7 @@ export class MessageStore {
 
     async show(message_id: string):Promise<Message>{
         try {
-            const sql = 'SELECT m.firstname, m.lastname, m.phone, m.email, pa.possible_appt , m.message, m.fecha_mensaje FROM messages AS m INNER JOIN possible_appts AS pa ON m.possible_appt=pa.possible_appt_id INNER JOIN message_status AS ms ON m.STATUS_ID=ms.status_id WHERE m.message_id=$1';
+            const sql = 'SELECT m.firstname, m.lastname, m.phone, m.email, pa.possible_appt , m.message, m.fecha_mensaje FROM messages AS m INNER JOIN possible_appts AS pa ON m.possible_appt=pa.possible_appt_id WHERE m.message_id=$1';
             const conn = await Client.connect();
             const result = await conn.query(sql, [message_id]);
             conn.release();
