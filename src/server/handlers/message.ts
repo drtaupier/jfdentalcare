@@ -15,10 +15,10 @@ const index = async (_req: Request, res: Response) => {
 
 const show = async (req: Request, res: Response) => {
     try {
-        const message = await store.show(req.params.message_id)
+        const message = await store.show(req.params.message_id);
         res.status(200).json(message);
-    } catch (error) {
-        res.status(400).json(error)
+    } catch (error: any) {
+        res.status(400).json({ error: error.message });
     }
 };
 
@@ -31,11 +31,12 @@ const create = async (req: Request, res: Response) => {
             phone: body.phone,
             email: body.email,
             possible_appt: body.possible_appt,
-            message: body.message
+            message: body.message,
+            status_id: 1
         }
         const newMessage = await store.create(message);
         res.status(201).json(newMessage);
-    } catch (error) {
+    } catch (error) {        
         res.status(400).json(error)
     }
 };

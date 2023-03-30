@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import userRoutes from './handlers/users'
 import messageRoutes from './handlers/message';
 import message_usersRoutes from './handlers/message_users';
+import cors from 'cors';
 
 const path = require('path');
 const port = process.env.PORT;
@@ -12,6 +13,7 @@ const app: express.Application = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(morgan('dev'));
+app.use(cors());
 
 app.use(express.static(path.resolve(__dirname, "../../public")));
 app.use(express.static(__dirname));

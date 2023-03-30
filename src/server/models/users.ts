@@ -112,19 +112,27 @@ export class UserStore {
         }
     }
 
-    async authenticate(username: string, password: string): Promise<string> {
-		const conn = await Client.connect();
-		const sql = 'SELECT password FROM users WHERE username=$1';
-		const result = await conn.query(sql, [username]);
-		if (result.rows.length) {
-			const newUser = result.rows[0];
-			if (bcrypt.compareSync(password + process.env.PAPPER, newUser.password)) {
-				return newUser;
-			} else {
-				throw new Error('The password is wrong, please try again.');
-			}
-		}
-		throw new Error('Invalid username, please try again.');
-	}
+    async authenticate(username: string, password: string): Promise<User | null> {
+        try {
+            const conn = await Client.connect();
+            const sql = 'SELECT * FROM users WHERE username=$1';
+            const result = await conn.query(sql, [username]);
+            conn.release();
+            if (result.rows.length) {
+                const user = result.rows[0];
+                if (bcrypt.compareSync(password + process.env.PAPPER, user.password)) {
+                    return user;
+                }
+            }
+            return null; // Usuario no encontrado o contraseña incorrecta
+        } catch (error) {
+            throw new Error(`Cannot authenticate the user. Error: ${error}`)
+        }
+    }
 
+    
+
+    
+    
 }
+

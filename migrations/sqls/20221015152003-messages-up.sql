@@ -11,3 +11,6 @@ CREATE TABLE messages (
     message VARCHAR(200),
     fecha_mensaje DATE DEFAULT NOW()
 );
+
+ALTER TABLE messages
+ADD COLUMN status_id INT NOT NULL DEFAULT 1;

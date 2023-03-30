@@ -94,16 +94,26 @@ export class Message_usersStore {
         };
     }
 
-    async create(m: Message_users):Promise<Message_users>{
+    async create(message_id:number, status_id: number, user_id: number):Promise<Message_users>{
         try {
             const conn = await Client.connect();
-            const sql = 'INSERT INTO message_users(message_id, status_id, user_id) VALUES ($1, $2, $3) RETURNING *';
+            // const sql = 'INSERT INTO message_users(message_id, status_id, user_id) VALUES ($1, $2, $3) RETURNING *';
+            const sql = 'INSERT INTO message_users(message_id, status_id, user_id) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT message_id FROM message_users WHERE message_id = $1) RETURNING *';
             const result = await conn.query(sql, [
-                m.message_id,
-                m.status_id,
-                m.user_id
+                message_id,
+                status_id,
+                user_id
             ]); 
             const message_users = result.rows[0];
+
+            const updateSql = `
+                UPDATE messages SET status_id = (
+                    SELECT status_id FROM message_users WHERE message_users.message_id = messages.message_id ORDER BY fecha_cambio DESC LIMIT 1
+                ) WHERE EXISTS (
+                    SELECT 1 FROM message_users WHERE message_users.message_id = messages.message_id
+                ) AND messages.message_id = $1;
+                `;
+            await conn.query(updateSql, [message_id]);
             conn.release();
             return message_users;
         } catch (error) {

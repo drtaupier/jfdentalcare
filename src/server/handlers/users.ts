@@ -80,18 +80,23 @@ const active = async (req: Request, res: Response) => {
 }
 
 const authenticate = async (req: Request, res: Response) => {
-	const user: User = {
-		username: req.body.username,
-		password: req.body.password,
+    const user: User = {
+        username: req.body.username,
+        password: req.body.password,
     };
-	try {
-		const u = await store.authenticate(user.username, user.password);
-		const token = jwt.sign({ user: u }, process.env.TOKEN_SECRET as Secret);
-		res.json(token);
-	} catch (error) {
-		res.status(401).json(error);
-	}
+    try {
+        const u = await store.authenticate(user.username, user.password);
+        if (!u) {
+            throw new Error('Usuario no encontrado');
+        }
+        const payload = { user: u, user_id: u.user_id };
+        const token = jwt.sign(payload, process.env.TOKEN_SECRET as Secret);
+        res.json({ token: token, user_id: u.user_id }); // Devolver un objeto que contenga tanto el token como el user_id
+    } catch (error) {
+        res.status(401).json(error);
+    }
 };
+
 
 const userRoutes = (app: express.Application): void => {
     app.get('/users', verifyAuthToken, index); // Muestra todos los usuarios

@@ -69,17 +69,17 @@ const showNoContact = async (req: Request, res: Response) => {
 
 const create = async (req: Request, res: Response) => {
     try {
-        const message_user: Message_users = {
-            message_id: req.body.message_id,
-            status_id: req.body.status_id,
-            user_id: req.body.user_id
-        }
-        const newMessage_users = await store.create(message_user);
+        const message_id = parseInt(req.params.message_id);
+        const status_id = parseInt(req.params.status_id);
+        const user_id = parseInt(req.params.user_id);
+
+        const newMessage_users = await store.create(message_id, status_id, user_id);
         res.status(201).json(newMessage_users);
     } catch (error) {
         res.status(400).json(error)
     }
 }
+
 
 const edit = async (req: Request, res: Response) => {
     try {
@@ -105,7 +105,7 @@ const message_usersRoutes = (app: express.Application): void => {
     app.get('/message-users/showattended', verifyAuthToken, showAttended); //Mensaje atendido
     app.get('/message-users/shownocontact', verifyAuthToken, showNoContact); //No se logró tener contacto con el paciente
     app.post('/message-users/edit', verifyAuthToken, edit); //Nos ayuda a modificar el status de cada paciente
-    app.post('/message-users', verifyAuthToken, create);
+    app.post('/message-users/:message_id/:status_id/:user_id', verifyAuthToken, create);
 }
 
 export default message_usersRoutes;
