@@ -5,7 +5,7 @@ CREATE TABLE users (
 user_id SERIAL PRIMARY KEY,
 firstname VARCHAR(50) NOT NULL,
 lastname VARCHAR(80) NOT NULL,
-username VARCHAR(50) NOT NULL,
+username VARCHAR(50) NOT NULL UNIQUE,
 password VARCHAR(100) NOT NULL,
 status_id INT REFERENCES user_status(status_id) DEFAULT 1,
 DOB DATE NOT NULL,
