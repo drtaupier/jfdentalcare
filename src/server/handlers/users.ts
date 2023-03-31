@@ -3,6 +3,7 @@ import verifyAuthToken from '../middlewares/auth';
 import { User, UserStore } from '../models/users';
 import jwt, { Secret } from 'jsonwebtoken';
 import dotenv from 'dotenv';
+
 dotenv.config()
 
 const store = new UserStore();
@@ -44,22 +45,24 @@ const show = async (req: Request, res: Response) => {
 };
 
 const create = async (req: Request, res: Response) => {
-	try {
-        const body = req.body;
-		const user: User = {
-			firstname: body.firstname,
-			lastname: body.lastname,
-			username: body.username,
-            password: body.password,
-            dob: body.dob,
-            role_id: body.role_id
-        };
-        const newUser = await store.create(user);
-		res.status(201).json(newUser);
-	} catch (error) {
-		res.status(400).json(error);
-	}
-};
+    try {
+      // intentar crear el usuario
+      const user = req.body as User;
+      const newUser = await store.create(user);
+      res.status(201).json(newUser);
+    } catch (error: any) {
+        console.log(error);
+        
+      // si el usuario ya existe, devolver un error 409
+      if (error.message.includes('duplicate key value violates unique constraint')) {
+        res.status(409).json({ error: 'El usuario ya existe en la base de datos' });
+      } else {
+        // si hay otro error, devolver un error 400
+        res.status(400).json({ error: error.message });
+      }
+    }
+  };
+  
 
 const destroy = async (req: Request, res: Response) =>{
     try {
