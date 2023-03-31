@@ -1,6 +1,5 @@
 import Client from '../database';
 import bcrypt from 'bcrypt';
-import dotenv from 'dotenv';
 
 export type User = {
     user_id?: number;
@@ -12,7 +11,6 @@ export type User = {
     dob?: Date;
     role_id?:number
 }
-
 export class UserStore {
     async index(): Promise<User[]>{
         try{
@@ -62,30 +60,39 @@ export class UserStore {
         }
     }
 
-    async create(u: User):Promise<User> {
+    async create(u: User): Promise<User> {
         try {
-            const conn = await Client.connect();
-            const sql = 'INSERT INTO users (firstname, lastname, username, password, dob, role_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *';
-            const hash = bcrypt.hashSync(
-                u.password + process.env.PAPPER,
-                parseInt(process.env.SALT_ROUNDS as unknown as string)
-                );
-            console.log(hash);            
-            const result = await conn.query(sql, [
-                u.firstname,
-                u.lastname,
-                u.username,
-                hash,
-                u.dob,
-                u.role_id
-            ]);
-            const user = result.rows[0];
-            conn.release();
-            return user;
+          const conn = await Client.connect();
+          const sql =
+            'INSERT INTO users (firstname, lastname, username, password, dob, role_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *'
+      
+          const hash = bcrypt.hashSync(
+            u.password + process.env.PAPPER,
+            parseInt(process.env.SALT_ROUNDS as unknown as string)
+          );
+      
+          const result = await conn.query(sql, [
+            u.firstname,
+            u.lastname,
+            u.username,
+            hash,
+            u.dob,
+            u.role_id,
+          ]);
+      
+          conn.release();
+          const user = result.rows[0];
+      
+          if (!user) {
+            throw new Error(`El usuario ya se encuentra registrado.`);
+          }
+      
+          return user;
         } catch (error) {
-            throw new Error(`Cannot create the user. Error: ${error}`)
+          throw new Error(`Cannot create the user. Error: ${error}`);
         }
-    }
+      }
+      
     
     async delete(users_id:string):Promise<User>{
         try {
@@ -131,7 +138,6 @@ export class UserStore {
     }
 
     
-
     
     
 }
