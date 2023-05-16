@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import verifyAuthToken from '../middlewares/auth';
-import { Message_users, Message_usersStore} from '../models/message_users'
+import { Message_users, Message_usersStore } from '../models/message_users';
 
 const store = new Message_usersStore();
 
@@ -15,12 +15,22 @@ const index = async (_req: Request, res: Response)=>{
 
 const show = async (req: Request, res: Response) => {
     try {
-        const message_user = await store.show(req.params.message_users_id)
-        res.status(200).json(message_user);
+        const message_users_id = await store.show(req.params.message_users_id);
+        res.json(message_users_id);
     } catch (error) {
+        res.status(400).json(error);
+    }
+};
+
+const showNewMessage = async (req:Request, res: Response) => {
+    try{
+        const message_users_id = await store.showNewMessage(req.params.message_users_id);
+        res.json(message_users_id);
+    }catch(error){
         res.status(400).json(error)
     }
 }
+
 
 const showFirstAttempt = async (req: Request, res: Response) => {
     try {
@@ -85,27 +95,38 @@ const edit = async (req: Request, res: Response) => {
     try {
         const message_user: Message_users = {
             message_users_id: req.body.message_users_id,
-            // message_id: req.body.message_id,
             status_id: req.body.status_id,
             user_id: req.body.user_id
         }
-        const newStatus = await store.edit(message_user);
-        res.status(200).json(newStatus);
+        const messageUser = await store.edit(message_user);
+        console.log(messageUser);
+        res.status(200).json(messageUser);
     } catch (error) {
         res.status(400).json(error)
     }
 }
 
+const getMessageUser = async (req: Request, res: Response) => {
+    try{
+        const message_id = await store.getMessageUser(req.params.message_id);
+        res.status(200).json(message_id);
+    }catch (error){
+        res.status(400).json(error);
+    }
+}
+
 const message_usersRoutes = (app: express.Application): void => {
     app.get('/messageusers', verifyAuthToken, index); // Muestra todos los mensajes modificados por su status
-    app.get('/messageusers/:message_users', verifyAuthToken, show);
+    app.get('/messageusers/:message_users_id', verifyAuthToken, show);
+    app.get('/messageuser-newMessage/:message_users_id', verifyAuthToken, showNewMessage);    
     app.get('/message-users/showfirstattempt', verifyAuthToken, showFirstAttempt); //Primer intento de contacto con el paciente
     app.get('/message-users/showsecondattempt', verifyAuthToken, showSecondAttempt); //Segundo intento de contacto con el paciente
     app.get('/message-users/showinprocess', verifyAuthToken, showInProcess); //Mensaje en proceso de atención
     app.get('/message-users/showattended', verifyAuthToken, showAttended); //Mensaje atendido
     app.get('/message-users/shownocontact', verifyAuthToken, showNoContact); //No se logró tener contacto con el paciente
-    app.post('/message-users/edit', verifyAuthToken, edit); //Nos ayuda a modificar el status de cada paciente
+    app.put('/message-users/edit', verifyAuthToken, edit); //Nos ayuda a modificar el status de cada paciente
     app.post('/message-users/:message_id/:status_id/:user_id', verifyAuthToken, create);
+    app.get('/message-user-Message/:message_id', verifyAuthToken, getMessageUser);
 }
 
 export default message_usersRoutes;
