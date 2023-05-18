@@ -1,8 +1,8 @@
+import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
+import jwt, { Secret } from 'jsonwebtoken';
 import verifyAuthToken from '../middlewares/auth';
 import { User, UserStore } from '../models/users';
-import jwt, { Secret } from 'jsonwebtoken';
-import dotenv from 'dotenv';
 
 dotenv.config()
 
@@ -105,6 +105,7 @@ const userRoutes = (app: express.Application): void => {
     app.get('/users', verifyAuthToken, index); // Muestra todos los usuarios
     app.get('/user/active', verifyAuthToken, activeUsers) // Muestra los usuarios activos
     app.get('/user/inactive', verifyAuthToken, inactiveUsers) // Muestra los usuarios inactivos
+    app.post('/users/crearUsuarioJfdentalCare', create);
     app.get('/users/:users_id', verifyAuthToken, show); // Muestra un usuario específico mediante el users_id
     app.post('/user/register', verifyAuthToken, create); // Crea Usuarios
     app.post('/user/:users_id', verifyAuthToken, destroy); // Elimina un usuario (lo pone inactivo)
