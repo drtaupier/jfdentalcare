@@ -1,13 +1,13 @@
-import express, {Request, Response} from 'express';
 import bodyParser from 'body-parser';
+import cors from 'cors';
+import express, { Request, Response } from 'express';
 import morgan from 'morgan';
-import userRoutes from './handlers/users'
 import messageRoutes from './handlers/message';
 import message_usersRoutes from './handlers/message_users';
-import cors from 'cors';
+import userRoutes from './handlers/users';
 
 const path = require('path');
-const port = process.env.PORT;
+const port = 'jfdentalcare.com';
 const app: express.Application = express();
 
 app.use(bodyParser.json());
