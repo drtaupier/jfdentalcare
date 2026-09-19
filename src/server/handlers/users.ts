@@ -3,8 +3,8 @@ import express, { Request, Response } from 'express';
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import verifyAuthToken from '../middlewares/auth';
 import { requireRole } from '../middlewares/roles';
-import { User, UserStore } from '../models/users';
-import { validatePassword } from '../utils/password';
+import { ManagedUserInput, UserStore } from '../models/users';
+import { generateTemporaryPassword, validatePassword } from '../utils/password';
 
 dotenv.config();
 
@@ -48,35 +48,54 @@ const show = async (req: Request, res: Response) => {
 
 const create = async (req: Request, res: Response) => {
 	try {
-		const user = req.body as User;
-		if (!user.role_id) {
-			res.status(400).json({ error: 'Role is required' });
+		const { firstname, lastname, username, display_name, role } = req.body;
+		if (
+			![firstname, lastname, username, display_name, role].every(
+				(value) => typeof value === 'string' && value.trim().length > 0
+			)
+		) {
+			res.status(400).json({ error: 'All user fields are required' });
+			return;
+		}
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username)) {
+			res.status(400).json({ error: 'Username must be a valid email address' });
 			return;
 		}
 
-		const requestedRole = await store.roleNameById(user.role_id);
-		if (!requestedRole) {
-			res.status(400).json({ error: 'Invalid role' });
-			return;
-		}
-		if (requestedRole === 'TECH_SUPPORT') {
+		const normalizedRole = role.trim().toUpperCase();
+		if (!['OWNER', 'MANAGER', 'USER'].includes(normalizedRole)) {
 			res.status(403).json({
-				error: 'TECH_SUPPORT accounts can only be created by the secure bootstrap command',
+				error: 'Role must be OWNER, MANAGER, or USER',
 			});
 			return;
 		}
 
-		const newUser = await store.create(user);
-		res.status(201).json(newUser);
+		const user: ManagedUserInput = {
+			firstname: firstname.trim(),
+			lastname: lastname.trim(),
+			username: username.trim().toLowerCase(),
+			display_name: display_name.trim(),
+			role: normalizedRole as ManagedUserInput['role'],
+		};
+		const temporaryPassword = generateTemporaryPassword();
+		const newUser = await store.createManagedUser(
+			user,
+			temporaryPassword,
+			req.auth!.user_id,
+			req.ip
+		);
+		res.status(201).json({
+			user: newUser,
+			temporary_password: temporaryPassword,
+			message: 'Save this temporary password now; it will not be shown again',
+		});
 	} catch (error: any) {
-		console.log(error);
-
-		// si el usuario ya existe, devolver un error 409
-		if (error.message.includes('duplicate key value violates unique constraint')) {
-			res.status(409).json({ error: 'El usuario ya existe en la base de datos' });
+		if (error?.code === '23505') {
+			res.status(409).json({ error: 'A user with this email already exists' });
+		} else if (error?.message === 'ROLE_NOT_ALLOWED') {
+			res.status(403).json({ error: 'This role cannot be assigned through the API' });
 		} else {
-			// si hay otro error, devolver un error 400
-			res.status(400).json({ error: error.message });
+			res.status(500).json({ error: 'Unable to create user' });
 		}
 	}
 };
@@ -189,6 +208,7 @@ const userRoutes = (app: express.Application): void => {
 	app.get('/user/active', verifyAuthToken, administrativeRoles, activeUsers);
 	app.get('/user/inactive', verifyAuthToken, administrativeRoles, inactiveUsers);
 	app.get('/users/:users_id', verifyAuthToken, administrativeRoles, show);
+	app.post('/api/users', verifyAuthToken, accountManagerRoles, create);
 	app.post('/user/register', verifyAuthToken, accountManagerRoles, create);
 	app.post('/user/:users_id', verifyAuthToken, administrativeRoles, destroy);
 	app.post('/users/:users_id', verifyAuthToken, administrativeRoles, active);

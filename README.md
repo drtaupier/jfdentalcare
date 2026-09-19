@@ -61,3 +61,23 @@ token and an authorized role.
 Supported roles are `OWNER`, `MANAGER`, `TECH_SUPPORT`, and `TESTER`. The legacy
 `ADMIN` role remains temporarily supported so existing production users can
 sign in while their accounts are migrated.
+
+## Owner-managed users
+
+An authenticated `OWNER` can create an `OWNER`, `MANAGER`, or `USER` with
+`POST /api/users`. The request uses role names rather than database IDs:
+
+```json
+{
+  "firstname": "First",
+  "lastname": "Last",
+  "username": "person@example.com",
+  "display_name": "Display Name",
+  "role": "MANAGER"
+}
+```
+
+The API generates a strong temporary password, returns it only in the creation
+response, expires it after 24 hours, requires a password change at first login,
+and records the creating user and IP address in the audit log. `TECH_SUPPORT`
+cannot be assigned through this endpoint.

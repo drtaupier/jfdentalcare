@@ -24,6 +24,15 @@ export type AuthenticatedUser = {
 	must_change_password: boolean;
 	temporary_password_expires_at?: Date | string | null;
 };
+
+export type ManagedUserInput = {
+	firstname: string;
+	lastname: string;
+	username: string;
+	display_name: string;
+	role: 'OWNER' | 'MANAGER' | 'USER';
+};
+
 export class UserStore {
 	async roleNameById(roleId: number): Promise<string | null> {
 		const conn = await Client.connect();
@@ -123,6 +132,66 @@ export class UserStore {
 			return user;
 		} catch (error) {
 			throw new Error(`Cannot create the user. Error: ${error}`);
+		}
+	}
+
+	async createManagedUser(
+		user: ManagedUserInput,
+		temporaryPassword: string,
+		actorUserId: number,
+		ipAddress?: string
+	): Promise<User> {
+		const allowedRoles = ['OWNER', 'MANAGER', 'USER'];
+		if (!allowedRoles.includes(user.role)) throw new Error('ROLE_NOT_ALLOWED');
+
+		const conn = await Client.connect();
+		try {
+			await conn.query('BEGIN');
+			const role = await conn.query(
+				'SELECT role_id FROM user_roles WHERE user_role = $1',
+				[user.role]
+			);
+			if (!role.rowCount) throw new Error('ROLE_NOT_FOUND');
+
+			const passwordHash = await hashPassword(temporaryPassword);
+			const result = await conn.query(
+				`INSERT INTO users
+				 (firstname, lastname, username, password, role_id, display_name,
+				  must_change_password, temporary_password_expires_at)
+				 VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW() + INTERVAL '24 hours')
+				 RETURNING user_id, firstname, lastname, username, status_id, role_id,
+				           display_name, must_change_password,
+				           temporary_password_expires_at, created_at`,
+				[
+					user.firstname,
+					user.lastname,
+					user.username.toLowerCase(),
+					passwordHash,
+					role.rows[0].role_id,
+					user.display_name,
+				]
+			);
+			const createdUser = result.rows[0] as User;
+
+			await conn.query(
+				`INSERT INTO audit_logs
+				 (actor_user_id, action, resource_type, resource_id, ip_address, metadata)
+				 VALUES ($1, 'USER_CREATED', 'USER', $2, $3, $4::jsonb)`,
+				[
+					actorUserId,
+					String(createdUser.user_id),
+					ipAddress || null,
+					JSON.stringify({ role: user.role, method: 'owner_managed' }),
+				]
+			);
+
+			await conn.query('COMMIT');
+			return { ...createdUser, user_role: user.role };
+		} catch (error) {
+			await conn.query('ROLLBACK');
+			throw error;
+		} finally {
+			conn.release();
 		}
 	}
 
