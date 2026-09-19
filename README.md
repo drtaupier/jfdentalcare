@@ -28,6 +28,11 @@ INITIAL_OWNER_LAST_NAME
 
 Never commit `.env` or real credentials.
 
+`PEPPER` must be a long, stable secret. Changing its value makes existing
+password hashes impossible to verify. The misspelled legacy variable `PAPPER`
+is temporarily accepted for compatibility, but new environments must use
+`PEPPER`.
+
 `POSTGRES_PORT` can point migrations to an isolated local PostgreSQL instance,
 so testing does not require changing or stopping another database server.
 

@@ -1,6 +1,6 @@
-import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import Client from '../database';
+import { hashPassword } from '../utils/password';
 
 dotenv.config();
 
@@ -15,12 +15,6 @@ const bootstrapOwner = async (): Promise<void> => {
 	const password = required('INITIAL_OWNER_PASSWORD');
 	const firstName = required('INITIAL_OWNER_FIRST_NAME');
 	const lastName = required('INITIAL_OWNER_LAST_NAME');
-	const pepper = required('PAPPER');
-	const saltRounds = Number(required('SALT_ROUNDS'));
-
-	if (!Number.isInteger(saltRounds) || saltRounds < 10) {
-		throw new Error('SALT_ROUNDS must be an integer of at least 10');
-	}
 
 	const connection = await Client.connect();
 	try {
@@ -45,7 +39,7 @@ const bootstrapOwner = async (): Promise<void> => {
 			throw new Error('OWNER role is missing. Run migrations first.');
 		}
 
-		const passwordHash = await bcrypt.hash(password + pepper, saltRounds);
+		const passwordHash = await hashPassword(password);
 		await connection.query(
 			`INSERT INTO users
          (firstname, lastname, username, password, role_id, display_name, must_change_password)

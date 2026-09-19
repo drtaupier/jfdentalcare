@@ -6,8 +6,28 @@ const requiredEnvironmentValue = (name: string): string => {
 	return value;
 };
 
+let legacyPepperWarningShown = false;
+
+const passwordPepper = (): string => {
+	const pepper = process.env.PEPPER?.trim();
+	if (pepper) return pepper;
+
+	const legacyPepper = process.env.PAPPER?.trim();
+	if (legacyPepper) {
+		if (!legacyPepperWarningShown) {
+			console.warn(
+				'Deprecated environment variable PAPPER detected; rename it to PEPPER.'
+			);
+			legacyPepperWarningShown = true;
+		}
+		return legacyPepper;
+	}
+
+	throw new Error('Missing required environment variable: PEPPER');
+};
+
 const passwordValue = (password: string): string =>
-	password + requiredEnvironmentValue('PAPPER');
+	password + passwordPepper();
 
 export const validatePassword = (password: string): string[] => {
 	const errors: string[] = [];
