@@ -1,5 +1,6 @@
-import express, { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import jwt, { Secret } from 'jsonwebtoken';
+import { AuthTokenPayload } from '../types/auth';
 
 const verifyAuthToken = (
 	req: Request,
@@ -7,16 +8,21 @@ const verifyAuthToken = (
 	next: NextFunction
 ): void => {
 	try {
-		const authorizationHeader: string = req.headers
-			.authorization! as unknown as string;
-		const token = authorizationHeader.split(' ')[1];
-		const decoded = jwt.verify(token, process.env.TOKEN_SECRET as Secret);		
+		const authorizationHeader = req.headers.authorization;
+		if (!authorizationHeader?.startsWith('Bearer ')) {
+			throw new Error('Missing bearer token');
+		}
+
+		const token = authorizationHeader.slice('Bearer '.length);
+		const decoded = jwt.verify(
+			token,
+			process.env.TOKEN_SECRET as Secret
+		) as AuthTokenPayload;
+		req.auth = decoded;
 		next();
 	} catch (error) {
-		res.status(401);
-		res.json('Access denied, invalid token');
-	}	
+		res.status(401).json({ error: 'Access denied, invalid or expired token' });
+	}
 };
-
 
 export default verifyAuthToken;
