@@ -4,6 +4,7 @@ import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import verifyAuthToken from '../middlewares/auth';
 import { requireRole } from '../middlewares/roles';
 import { User, UserStore } from '../models/users';
+import { validatePassword } from '../utils/password';
 
 dotenv.config();
 
@@ -118,6 +119,52 @@ const authenticate = async (req: Request, res: Response) => {
 	}
 };
 
+const changePassword = async (req: Request, res: Response) => {
+	try {
+		const { current_password, new_password } = req.body;
+		if (typeof current_password !== 'string' || typeof new_password !== 'string') {
+			res
+				.status(400)
+				.json({ error: 'Current password and new password are required' });
+			return;
+		}
+
+		const passwordErrors = validatePassword(new_password);
+		if (passwordErrors.length) {
+			res.status(400).json({
+				error: `New password must contain ${passwordErrors.join(', ')}`,
+			});
+			return;
+		}
+
+		await store.changePassword(
+			req.auth!.user_id,
+			current_password,
+			new_password,
+			req.ip
+		);
+		res.status(200).json({
+			message: 'Password changed successfully',
+			must_change_password: false,
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : '';
+		if (message === 'CURRENT_PASSWORD_INCORRECT') {
+			res.status(400).json({ error: 'Current password is incorrect' });
+			return;
+		}
+		if (message === 'PASSWORD_UNCHANGED') {
+			res.status(400).json({ error: 'New password must be different' });
+			return;
+		}
+		if (message === 'USER_NOT_FOUND') {
+			res.status(404).json({ error: 'Active user not found' });
+			return;
+		}
+		res.status(500).json({ error: 'Unable to change password' });
+	}
+};
+
 const userRoutes = (app: express.Application): void => {
 	const administrativeRoles = requireRole('OWNER', 'TECH_SUPPORT', 'ADMIN');
 
@@ -130,6 +177,7 @@ const userRoutes = (app: express.Application): void => {
 	app.post('/users/:users_id', verifyAuthToken, administrativeRoles, active);
 	app.post('/login', authenticate); // Hace la autenticación de nuestras credenciales
 	app.post('/api/auth/login', authenticate);
+	app.post('/api/auth/change-password', verifyAuthToken, changePassword);
 };
 
 export default userRoutes;

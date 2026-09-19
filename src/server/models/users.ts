@@ -1,5 +1,5 @@
 import Client from '../database';
-import bcrypt from 'bcrypt';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 export type User = {
 	user_id?: number;
@@ -87,10 +87,7 @@ export class UserStore {
              RETURNING user_id, firstname, lastname, username, status_id, dob, role_id,
                        display_name, must_change_password, created_at`;
 
-			const hash = bcrypt.hashSync(
-				u.password + process.env.PAPPER,
-				parseInt(process.env.SALT_ROUNDS as unknown as string)
-			);
+			const hash = await hashPassword(u.password);
 
 			const result = await conn.query(sql, [
 				u.firstname,
@@ -153,7 +150,7 @@ export class UserStore {
 			conn.release();
 			if (result.rows.length) {
 				const user = result.rows[0];
-				if (bcrypt.compareSync(password + process.env.PAPPER, user.password)) {
+				if (await verifyPassword(password, user.password)) {
 					const { password: _passwordHash, ...safeUser } = user;
 					return safeUser as AuthenticatedUser;
 				}
@@ -161,6 +158,64 @@ export class UserStore {
 			return null; // Usuario no encontrado o contraseña incorrecta
 		} catch (error) {
 			throw new Error(`Cannot authenticate the user. Error: ${error}`);
+		}
+	}
+
+	async changePassword(
+		userId: number,
+		currentPassword: string,
+		newPassword: string,
+		ipAddress?: string
+	): Promise<void> {
+		const conn = await Client.connect();
+		try {
+			await conn.query('BEGIN');
+			const result = await conn.query(
+				`SELECT password FROM users
+                 WHERE user_id = $1 AND status_id = 1
+                 FOR UPDATE`,
+				[userId]
+			);
+
+			if (!result.rowCount) throw new Error('USER_NOT_FOUND');
+			const currentHash = result.rows[0].password as string;
+			if (!(await verifyPassword(currentPassword, currentHash))) {
+				throw new Error('CURRENT_PASSWORD_INCORRECT');
+			}
+			if (await verifyPassword(newPassword, currentHash)) {
+				throw new Error('PASSWORD_UNCHANGED');
+			}
+
+			const newHash = await hashPassword(newPassword);
+			await conn.query(
+				`UPDATE users
+                 SET password = $1,
+                     must_change_password = FALSE,
+                     temporary_password_expires_at = NULL,
+                     password_changed_at = NOW(),
+                     failed_login_attempts = 0,
+                     locked_until = NULL,
+                     updated_at = NOW()
+                 WHERE user_id = $2`,
+				[newHash, userId]
+			);
+			await conn.query(
+				`INSERT INTO audit_logs
+                 (actor_user_id, action, resource_type, resource_id, ip_address, metadata)
+                 VALUES ($1, 'PASSWORD_CHANGED', 'USER', $2, $3, $4::jsonb)`,
+				[
+					userId,
+					String(userId),
+					ipAddress || null,
+					JSON.stringify({ method: 'self_service' }),
+				]
+			);
+			await conn.query('COMMIT');
+		} catch (error) {
+			await conn.query('ROLLBACK');
+			throw error;
+		} finally {
+			conn.release();
 		}
 	}
 }
