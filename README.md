@@ -28,6 +28,9 @@ INITIAL_OWNER_LAST_NAME
 
 Never commit `.env` or real credentials.
 
+`POSTGRES_PORT` can point migrations to an isolated local PostgreSQL instance,
+so testing does not require changing or stopping another database server.
+
 ## Authentication
 
 The compatible login endpoint remains `POST /login`. The canonical endpoint is
