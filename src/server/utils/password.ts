@@ -11,7 +11,7 @@ const passwordValue = (password: string): string =>
 
 export const validatePassword = (password: string): string[] => {
 	const errors: string[] = [];
-	if (password.length < 12) errors.push('at least 12 characters');
+	if (password.length < 8) errors.push('at least 8 characters');
 	if (!/[a-z]/.test(password)) errors.push('one lowercase letter');
 	if (!/[A-Z]/.test(password)) errors.push('one uppercase letter');
 	if (!/\d/.test(password)) errors.push('one number');
