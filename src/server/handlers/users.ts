@@ -48,8 +48,24 @@ const show = async (req: Request, res: Response) => {
 
 const create = async (req: Request, res: Response) => {
 	try {
-		// intentar crear el usuario
 		const user = req.body as User;
+		if (!user.role_id) {
+			res.status(400).json({ error: 'Role is required' });
+			return;
+		}
+
+		const requestedRole = await store.roleNameById(user.role_id);
+		if (!requestedRole) {
+			res.status(400).json({ error: 'Invalid role' });
+			return;
+		}
+		if (requestedRole === 'TECH_SUPPORT') {
+			res.status(403).json({
+				error: 'TECH_SUPPORT accounts can only be created by the secure bootstrap command',
+			});
+			return;
+		}
+
 		const newUser = await store.create(user);
 		res.status(201).json(newUser);
 	} catch (error: any) {
@@ -167,12 +183,13 @@ const changePassword = async (req: Request, res: Response) => {
 
 const userRoutes = (app: express.Application): void => {
 	const administrativeRoles = requireRole('OWNER', 'TECH_SUPPORT', 'ADMIN');
+	const accountManagerRoles = requireRole('OWNER', 'ADMIN');
 
 	app.get('/users', verifyAuthToken, administrativeRoles, index);
 	app.get('/user/active', verifyAuthToken, administrativeRoles, activeUsers);
 	app.get('/user/inactive', verifyAuthToken, administrativeRoles, inactiveUsers);
 	app.get('/users/:users_id', verifyAuthToken, administrativeRoles, show);
-	app.post('/user/register', verifyAuthToken, administrativeRoles, create);
+	app.post('/user/register', verifyAuthToken, accountManagerRoles, create);
 	app.post('/user/:users_id', verifyAuthToken, administrativeRoles, destroy);
 	app.post('/users/:users_id', verifyAuthToken, administrativeRoles, active);
 	app.post('/login', authenticate); // Hace la autenticación de nuestras credenciales

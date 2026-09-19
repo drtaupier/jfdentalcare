@@ -8,7 +8,8 @@ TypeScript and Express API for JF Dental Care.
 2. Install dependencies with `npm install`.
 3. Run database migrations with `npm run migrate:up`.
 4. Create the first practice owner with `npm run bootstrap:owner`.
-5. Start the API with `npm start`.
+5. Create the technical support account with `npm run bootstrap:tech-support`.
+6. Start the API with `npm start`.
 
 ## First owner account
 
@@ -27,6 +28,21 @@ INITIAL_OWNER_LAST_NAME
 ```
 
 Never commit `.env` or real credentials.
+
+## Technical support account
+
+`TECH_SUPPORT` is a reserved system role. Owners and other authenticated users
+cannot assign it through the API. The account is created only through the
+secure `npm run bootstrap:tech-support` command using these variables:
+
+```text
+TECH_SUPPORT_USERNAME
+TECH_SUPPORT_PASSWORD
+```
+
+Only one technical support account may exist. It is displayed as `Technical
+Support`, receives a temporary password that expires after 24 hours, and must
+replace that password at first login.
 
 `PEPPER` must be a long, stable secret. Changing its value makes existing
 password hashes impossible to verify. The misspelled legacy variable `PAPPER`

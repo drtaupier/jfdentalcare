@@ -22,8 +22,22 @@ export type AuthenticatedUser = {
 	user_role: string;
 	status_id: number;
 	must_change_password: boolean;
+	temporary_password_expires_at?: Date | string | null;
 };
 export class UserStore {
+	async roleNameById(roleId: number): Promise<string | null> {
+		const conn = await Client.connect();
+		try {
+			const result = await conn.query(
+				'SELECT user_role FROM user_roles WHERE role_id = $1',
+				[roleId]
+			);
+			return result.rows[0]?.user_role || null;
+		} finally {
+			conn.release();
+		}
+	}
+
 	async index(): Promise<User[]> {
 		try {
 			const conn = await Client.connect();
@@ -150,6 +164,13 @@ export class UserStore {
 			conn.release();
 			if (result.rows.length) {
 				const user = result.rows[0];
+				if (
+					user.must_change_password &&
+					user.temporary_password_expires_at &&
+					new Date(user.temporary_password_expires_at).getTime() <= Date.now()
+				) {
+					return null;
+				}
 				if (await verifyPassword(password, user.password)) {
 					const { password: _passwordHash, ...safeUser } = user;
 					return safeUser as AuthenticatedUser;

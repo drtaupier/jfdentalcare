@@ -44,7 +44,8 @@
 		"test": "set ENV=test && db-migrate --env test up && jasmine-ts && db-migrate --env test reset",
 		"tsc": "tsc",
 		"build": "npx tsc",
-		"bootstrap:owner": "ts-node src/server/scripts/bootstrap-owner.ts"
+		"bootstrap:owner": "ts-node src/server/scripts/bootstrap-owner.ts",
+		"bootstrap:tech-support": "ts-node src/server/scripts/bootstrap-tech-support.ts"
 	},
 	"keywords": [],
 	"author": "",
