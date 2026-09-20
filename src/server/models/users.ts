@@ -52,7 +52,7 @@ export class UserStore {
 		try {
 			const conn = await Client.connect();
 			const sql =
-				'SELECT u.firstname, u.lastname, u.username, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_roles AS ur ON u.role_id=ur.role_id INNER JOIN user_status AS us ON u.status_id=us.status_id';
+				'SELECT u.user_id, u.firstname, u.lastname, u.username, u.display_name, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_roles AS ur ON u.role_id=ur.role_id INNER JOIN user_status AS us ON u.status_id=us.status_id';
 			const result = await conn.query(sql);
 			conn.release();
 			return result.rows;
@@ -65,7 +65,7 @@ export class UserStore {
 		try {
 			const conn = await Client.connect();
 			const sql =
-				'SELECT u.firstname, u.lastname, u.username, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_roles AS ur ON u.role_id=ur.role_id INNER JOIN user_status AS us ON u.status_id=us.status_id AND us.status_id=1';
+				'SELECT u.user_id, u.firstname, u.lastname, u.username, u.display_name, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_roles AS ur ON u.role_id=ur.role_id INNER JOIN user_status AS us ON u.status_id=us.status_id AND us.status_id=1';
 			const result = await conn.query(sql);
 			conn.release();
 			return result.rows;
@@ -78,7 +78,7 @@ export class UserStore {
 		try {
 			const conn = await Client.connect();
 			const sql =
-				'SELECT u.firstname, u.lastname, u.username, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_roles AS ur ON u.role_id=ur.role_id INNER JOIN user_status AS us ON u.status_id=us.status_id AND us.status_id=2';
+				'SELECT u.user_id, u.firstname, u.lastname, u.username, u.display_name, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_roles AS ur ON u.role_id=ur.role_id INNER JOIN user_status AS us ON u.status_id=us.status_id AND us.status_id=2';
 			const result = await conn.query(sql);
 			conn.release();
 			return result.rows;
@@ -90,7 +90,7 @@ export class UserStore {
 	async show(users_id: string): Promise<User> {
 		try {
 			const sql =
-				'SELECT u.firstname, u.lastname, u.username, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_status AS us ON u.status_id=us.status_id INNER JOIN user_roles AS ur ON u.role_id=ur.role_id AND u.user_id=$1';
+				'SELECT u.user_id, u.firstname, u.lastname, u.username, u.display_name, us.status, u.dob, ur.user_role FROM users AS u INNER JOIN user_status AS us ON u.status_id=us.status_id INNER JOIN user_roles AS ur ON u.role_id=ur.role_id AND u.user_id=$1';
 			const conn = await Client.connect();
 			const result = await conn.query(sql, [users_id]);
 			conn.release();
