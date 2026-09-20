@@ -1,19 +1,29 @@
-var dbm;
-var type;
-var seed;
+var fs = require('fs');
+var path = require('path');
+var Promise;
 
-exports.setup = function (options, seedLink) {
-	dbm = options.dbmigrate;
-	type = dbm.dataType;
-	seed = seedLink;
+exports.setup = function (options) {
+	Promise = options.Promise;
 };
 
+function runSqlFile(db, filename) {
+	var filePath = path.join(__dirname, 'sqls', filename);
+	return new Promise(function (resolve, reject) {
+		fs.readFile(filePath, { encoding: 'utf-8' }, function (error, data) {
+			if (error) return reject(error);
+			resolve(data);
+		});
+	}).then(function (data) {
+		return db.runSql(data);
+	});
+}
+
 exports.up = function (db) {
-	return db.runSqlFile('sqls/20260920183000-session-revocation-up.sql');
+	return runSqlFile(db, '20260920183000-session-revocation-up.sql');
 };
 
 exports.down = function (db) {
-	return db.runSqlFile('sqls/20260920183000-session-revocation-down.sql');
+	return runSqlFile(db, '20260920183000-session-revocation-down.sql');
 };
 
 exports._meta = {
