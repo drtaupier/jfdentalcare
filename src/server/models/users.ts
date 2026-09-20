@@ -23,6 +23,7 @@ export type AuthenticatedUser = {
 	status_id: number;
 	must_change_password: boolean;
 	temporary_password_expires_at?: Date | string | null;
+	token_version: number;
 };
 
 export type ManagedUserInput = {
@@ -285,6 +286,7 @@ export class UserStore {
                      password_changed_at = NOW(),
                      failed_login_attempts = 0,
                      locked_until = NULL,
+                     token_version = token_version + 1,
                      updated_at = NOW()
                  WHERE user_id = $2`,
 				[newHash, userId]
@@ -301,6 +303,78 @@ export class UserStore {
 				]
 			);
 			await conn.query('COMMIT');
+		} catch (error) {
+			await conn.query('ROLLBACK');
+			throw error;
+		} finally {
+			conn.release();
+		}
+	}
+
+	async resetPassword(
+		targetUserId: number,
+		temporaryPassword: string,
+		actorUserId: number,
+		actorRole: string,
+		ipAddress?: string
+	): Promise<{ user_id: number; username: string; user_role: string }> {
+		if (!['OWNER', 'TECH_SUPPORT', 'ADMIN'].includes(actorRole)) {
+			throw new Error('RESET_NOT_ALLOWED');
+		}
+		if (targetUserId === actorUserId) throw new Error('SELF_RESET_NOT_ALLOWED');
+
+		const conn = await Client.connect();
+		try {
+			await conn.query('BEGIN');
+			const target = await conn.query(
+				`SELECT u.user_id, u.username, r.user_role
+				 FROM users u
+				 JOIN user_roles r ON r.role_id = u.role_id
+				 WHERE u.user_id = $1 AND u.status_id = 1
+				 FOR UPDATE`,
+				[targetUserId]
+			);
+			if (!target.rowCount) throw new Error('USER_NOT_FOUND');
+
+			const targetUser = target.rows[0] as {
+				user_id: number;
+				username: string;
+				user_role: string;
+			};
+			if (!['OWNER', 'MANAGER', 'USER'].includes(targetUser.user_role)) {
+				throw new Error('TARGET_ROLE_NOT_ALLOWED');
+			}
+
+			const passwordHash = await hashPassword(temporaryPassword);
+			await conn.query(
+				`UPDATE users
+				 SET password = $1,
+				     must_change_password = TRUE,
+				     temporary_password_expires_at = NOW() + INTERVAL '24 hours',
+				     failed_login_attempts = 0,
+				     locked_until = NULL,
+				     token_version = token_version + 1,
+				     updated_at = NOW()
+				 WHERE user_id = $2`,
+				[passwordHash, targetUserId]
+			);
+			await conn.query(
+				`INSERT INTO audit_logs
+				 (actor_user_id, action, resource_type, resource_id, ip_address, metadata)
+				 VALUES ($1, 'PASSWORD_RESET', 'USER', $2, $3, $4::jsonb)`,
+				[
+					actorUserId,
+					String(targetUserId),
+					ipAddress || null,
+					JSON.stringify({
+						method: 'administrative',
+						actor_role: actorRole,
+						target_role: targetUser.user_role,
+					}),
+				]
+			);
+			await conn.query('COMMIT');
+			return targetUser;
 		} catch (error) {
 			await conn.query('ROLLBACK');
 			throw error;

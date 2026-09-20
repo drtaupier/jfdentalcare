@@ -134,6 +134,7 @@ const authenticate = async (req: Request, res: Response) => {
 			user_id: u.user_id,
 			username: u.username,
 			role: u.user_role,
+			token_version: u.token_version,
 		};
 		const tokenOptions: SignOptions = {
 			expiresIn: (process.env.TOKEN_EXPIRES_IN || '8h') as SignOptions['expiresIn'],
@@ -200,6 +201,47 @@ const changePassword = async (req: Request, res: Response) => {
 	}
 };
 
+const resetPassword = async (req: Request, res: Response) => {
+	const targetUserId = Number(req.params.users_id);
+	if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+		res.status(400).json({ error: 'A valid user ID is required' });
+		return;
+	}
+
+	try {
+		const temporaryPassword = generateTemporaryPassword();
+		const user = await store.resetPassword(
+			targetUserId,
+			temporaryPassword,
+			req.auth!.user_id,
+			req.auth!.role,
+			req.ip
+		);
+		res.status(200).json({
+			user,
+			temporary_password: temporaryPassword,
+			must_change_password: true,
+			temporary_password_expires_in: '24 hours',
+			message: 'Save this temporary password now; it will not be shown again',
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : '';
+		if (message === 'USER_NOT_FOUND') {
+			res.status(404).json({ error: 'Active user not found' });
+			return;
+		}
+		if (message === 'SELF_RESET_NOT_ALLOWED') {
+			res.status(400).json({ error: 'Use change-password for your own account' });
+			return;
+		}
+		if (['RESET_NOT_ALLOWED', 'TARGET_ROLE_NOT_ALLOWED'].includes(message)) {
+			res.status(403).json({ error: 'This password reset is not allowed' });
+			return;
+		}
+		res.status(500).json({ error: 'Unable to reset password' });
+	}
+};
+
 const userRoutes = (app: express.Application): void => {
 	const administrativeRoles = requireRole('OWNER', 'TECH_SUPPORT', 'ADMIN');
 	const accountManagerRoles = requireRole('OWNER', 'ADMIN');
@@ -215,6 +257,12 @@ const userRoutes = (app: express.Application): void => {
 	app.post('/login', authenticate); // Hace la autenticación de nuestras credenciales
 	app.post('/api/auth/login', authenticate);
 	app.post('/api/auth/change-password', verifyAuthToken, changePassword);
+	app.post(
+		'/api/users/:users_id/reset-password',
+		verifyAuthToken,
+		administrativeRoles,
+		resetPassword
+	);
 };
 
 export default userRoutes;

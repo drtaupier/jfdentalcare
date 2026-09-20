@@ -40,8 +40,7 @@ TECH_SUPPORT_USERNAME
 TECH_SUPPORT_PASSWORD
 ```
 
-Only one technical support account may exist. It is displayed as `Technical
-Support`, receives a temporary password that expires after 24 hours, and must
+Only one technical support account may exist. It is displayed as `Technical Support`, receives a temporary password that expires after 24 hours, and must
 replace that password at first login.
 
 `PEPPER` must be a long, stable secret. Changing its value makes existing
@@ -69,11 +68,11 @@ An authenticated `OWNER` can create an `OWNER`, `MANAGER`, or `USER` with
 
 ```json
 {
-  "firstname": "First",
-  "lastname": "Last",
-  "username": "person@example.com",
-  "display_name": "Display Name",
-  "role": "MANAGER"
+	"firstname": "First",
+	"lastname": "Last",
+	"username": "person@example.com",
+	"display_name": "Display Name",
+	"role": "MANAGER"
 }
 ```
 
@@ -81,3 +80,12 @@ The API generates a strong temporary password, returns it only in the creation
 response, expires it after 24 hours, requires a password change at first login,
 and records the creating user and IP address in the audit log. `TECH_SUPPORT`
 cannot be assigned through this endpoint.
+
+## Administrative password reset
+
+An authenticated `OWNER`, `TECH_SUPPORT`, or legacy `ADMIN` can reset an active
+`OWNER`, `MANAGER`, or `USER` with
+`POST /api/users/:users_id/reset-password`. The endpoint generates a temporary
+password, returns it once, expires it after 24 hours, requires a password change,
+revokes the user's existing tokens, and writes an audit log. Administrators must
+use the self-service password-change endpoint for their own accounts.
