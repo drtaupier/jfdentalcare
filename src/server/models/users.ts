@@ -196,27 +196,170 @@ export class UserStore {
 		}
 	}
 
-	async delete(users_id: string): Promise<User> {
+	async delete(
+		targetUserId: number,
+		reason: string,
+		comments: string | null,
+		actorUserId: number,
+		actorRole: string,
+		ipAddress?: string
+	): Promise<{ user_id: number; username: string; user_role: string }> {
+		if (!['OWNER', 'TECH_SUPPORT', 'ADMIN'].includes(actorRole)) {
+			throw new Error('DEACTIVATION_NOT_ALLOWED');
+		}
+
+		if (targetUserId === actorUserId) {
+			throw new Error('SELF_DEACTIVATION_NOT_ALLOWED');
+		}
+
+		const conn = await Client.connect();
+
 		try {
-			const sql = 'UPDATE users SET status_id=2 WHERE user_id=$1';
-			const conn = await Client.connect();
-			const result = await conn.query(sql, [users_id]);
-			conn.release();
-			return result.rows[0];
+			await conn.query('BEGIN');
+
+			const target = await conn.query(
+				`SELECT u.user_id, u.username, r.user_role
+			 FROM users u
+			 JOIN user_roles r ON r.role_id = u.role_id
+			 WHERE u.user_id = $1 AND u.status_id = 1
+			 FOR UPDATE`,
+				[targetUserId]
+			);
+
+			if (!target.rowCount) {
+				throw new Error('ACTIVE_USER_NOT_FOUND');
+			}
+
+			const targetUser = target.rows[0] as {
+				user_id: number;
+				username: string;
+				user_role: string;
+			};
+
+			if (!['OWNER', 'MANAGER', 'USER'].includes(targetUser.user_role)) {
+				throw new Error('TARGET_ROLE_NOT_ALLOWED');
+			}
+
+			if (actorRole === 'TECH_SUPPORT' && targetUser.user_role === 'OWNER') {
+				throw new Error('TARGET_ROLE_NOT_ALLOWED');
+			}
+
+			await conn.query(
+				`UPDATE users
+			 SET status_id = 2,
+			     token_version = token_version + 1,
+			     updated_at = NOW()
+			 WHERE user_id = $1`,
+				[targetUserId]
+			);
+
+			await conn.query(
+				`INSERT INTO audit_logs
+			 (actor_user_id, action, resource_type, resource_id, ip_address, metadata)
+			 VALUES ($1, 'USER_DEACTIVATED', 'USER', $2, $3, $4::jsonb)`,
+				[
+					actorUserId,
+					String(targetUserId),
+					ipAddress || null,
+					JSON.stringify({
+						reason,
+						comments,
+						actor_role: actorRole,
+						target_role: targetUser.user_role,
+					}),
+				]
+			);
+
+			await conn.query('COMMIT');
+			return targetUser;
 		} catch (error) {
-			throw new Error(`Could not find user ${error}`);
+			await conn.query('ROLLBACK');
+			throw error;
+		} finally {
+			conn.release();
 		}
 	}
 
-	async active(users_id: string): Promise<User> {
+	async active(
+		targetUserId: number,
+		temporaryPassword: string,
+		actorUserId: number,
+		actorRole: string,
+		ipAddress?: string
+	): Promise<{ user_id: number; username: string; user_role: string }> {
+		if (!['OWNER', 'TECH_SUPPORT', 'ADMIN'].includes(actorRole)) {
+			throw new Error('REACTIVATION_NOT_ALLOWED');
+		}
+		if (targetUserId === actorUserId) {
+			throw new Error('SELF_REACTIVATION_NOT_ALLOWED');
+		}
+
+		const conn = await Client.connect();
 		try {
-			const sql = 'UPDATE users SET status_id=1 WHERE user_id=$1';
-			const conn = await Client.connect();
-			const result = await conn.query(sql, [users_id]);
-			conn.release();
-			return result.rows[0];
+			await conn.query('BEGIN');
+
+			const target = await conn.query(
+				`SELECT u.user_id, u.username, r.user_role
+			 FROM users u
+			 JOIN user_roles r ON r.role_id = u.role_id
+			 WHERE u.user_id = $1 AND u.status_id = 2
+			 FOR UPDATE`,
+				[targetUserId]
+			);
+
+			if (!target.rowCount) {
+				throw new Error('INACTIVE_USER_NOT_FOUND');
+			}
+
+			const targetUser = target.rows[0] as {
+				user_id: number;
+				username: string;
+				user_role: string;
+			};
+
+			if (!['OWNER', 'MANAGER', 'USER'].includes(targetUser.user_role)) {
+				throw new Error('TARGET_ROLE_NOT_ALLOWED');
+			}
+
+			const passwordHash = await hashPassword(temporaryPassword);
+
+			await conn.query(
+				`UPDATE users
+			 SET status_id = 1,
+			     password = $1,
+			     must_change_password = TRUE,
+			     temporary_password_expires_at = NOW() + INTERVAL '24 hours',
+			     failed_login_attempts = 0,
+			     locked_until = NULL,
+			     token_version = token_version + 1,
+			     updated_at = NOW()
+			 WHERE user_id = $2`,
+				[passwordHash, targetUserId]
+			);
+
+			await conn.query(
+				`INSERT INTO audit_logs
+			 (actor_user_id, action, resource_type, resource_id, ip_address, metadata)
+			 VALUES ($1, 'USER_REACTIVATED', 'USER', $2, $3, $4::jsonb)`,
+				[
+					actorUserId,
+					String(targetUserId),
+					ipAddress || null,
+					JSON.stringify({
+						actor_role: actorRole,
+						target_role: targetUser.user_role,
+						password_reset_required: true,
+					}),
+				]
+			);
+
+			await conn.query('COMMIT');
+			return targetUser;
 		} catch (error) {
-			throw new Error(`Could not find user ${error}`);
+			await conn.query('ROLLBACK');
+			throw error;
+		} finally {
+			conn.release();
 		}
 	}
 
@@ -224,31 +367,46 @@ export class UserStore {
 		username: string,
 		password: string
 	): Promise<AuthenticatedUser | null> {
+		const conn = await Client.connect();
+
 		try {
-			const conn = await Client.connect();
 			const sql = `SELECT u.*, ur.user_role
-                         FROM users AS u
-                         INNER JOIN user_roles AS ur ON u.role_id = ur.role_id
-                         WHERE LOWER(u.username) = LOWER($1) AND u.status_id = 1`;
+		             FROM users AS u
+		             INNER JOIN user_roles AS ur ON u.role_id = ur.role_id
+		             WHERE LOWER(u.username) = LOWER($1)
+		               AND u.status_id = 1`;
+
 			const result = await conn.query(sql, [username]);
-			conn.release();
-			if (result.rows.length) {
-				const user = result.rows[0];
-				if (
-					user.must_change_password &&
-					user.temporary_password_expires_at &&
-					new Date(user.temporary_password_expires_at).getTime() <= Date.now()
-				) {
-					return null;
-				}
-				if (await verifyPassword(password, user.password)) {
-					const { password: _passwordHash, ...safeUser } = user;
-					return safeUser as AuthenticatedUser;
-				}
+
+			if (!result.rows.length) {
+				return null;
 			}
-			return null; // Usuario no encontrado o contraseña incorrecta
+
+			const user = result.rows[0];
+			const passwordIsValid = await verifyPassword(password, user.password);
+
+			if (!passwordIsValid) {
+				return null;
+			}
+
+			if (
+				user.must_change_password &&
+				user.temporary_password_expires_at &&
+				new Date(user.temporary_password_expires_at).getTime() <= Date.now()
+			) {
+				throw new Error('TEMPORARY_PASSWORD_EXPIRED');
+			}
+
+			const { password: _passwordHash, ...safeUser } = user;
+			return safeUser as AuthenticatedUser;
 		} catch (error) {
+			if (error instanceof Error && error.message === 'TEMPORARY_PASSWORD_EXPIRED') {
+				throw error;
+			}
+
 			throw new Error(`Cannot authenticate the user. Error: ${error}`);
+		} finally {
+			conn.release();
 		}
 	}
 

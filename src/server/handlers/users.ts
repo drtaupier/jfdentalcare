@@ -101,20 +101,161 @@ const create = async (req: Request, res: Response) => {
 };
 
 const destroy = async (req: Request, res: Response) => {
+	const targetUserId = Number(req.params.users_id);
+	const reason =
+		typeof req.body?.reason === 'string'
+			? req.body.reason.trim().toUpperCase()
+			: '';
+
+	const comments =
+		typeof req.body?.comments === 'string' ? req.body.comments.trim() : null;
+
+	if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+		res.status(400).json({
+			error: {
+				code: 'INVALID_USER_ID',
+				message: 'A valid user ID is required',
+			},
+		});
+		return;
+	}
+
+	if (reason.length < 3 || reason.length > 500) {
+		res.status(400).json({
+			error: {
+				code: 'INVALID_DEACTIVATION_REASON',
+				message: 'A reason between 3 and 500 characters is required',
+			},
+		});
+		return;
+	}
+
 	try {
-		const user = await store.delete(req.params.users_id);
-		res.status(200).json(user);
+		const user = await store.delete(
+			targetUserId,
+			reason,
+			comments,
+			req.auth!.user_id,
+			req.auth!.role,
+			req.ip
+		);
+
+		res.status(200).json({
+			user,
+			message: 'User deactivated successfully',
+		});
 	} catch (error) {
-		res.status(400).json(error);
+		const message = error instanceof Error ? error.message : '';
+
+		if (message === 'ACTIVE_USER_NOT_FOUND') {
+			res.status(404).json({
+				error: {
+					code: 'ACTIVE_USER_NOT_FOUND',
+					message: 'Active user not found',
+				},
+			});
+			return;
+		}
+
+		if (message === 'SELF_DEACTIVATION_NOT_ALLOWED') {
+			res.status(400).json({
+				error: {
+					code: 'SELF_DEACTIVATION_NOT_ALLOWED',
+					message: 'You cannot deactivate your own account',
+				},
+			});
+			return;
+		}
+
+		if (['DEACTIVATION_NOT_ALLOWED', 'TARGET_ROLE_NOT_ALLOWED'].includes(message)) {
+			res.status(403).json({
+				error: {
+					code: message,
+					message: 'This account deactivation is not allowed',
+				},
+			});
+			return;
+		}
+
+		res.status(500).json({
+			error: {
+				code: 'DEACTIVATION_FAILED',
+				message: 'Unable to deactivate user',
+			},
+		});
 	}
 };
 
 const active = async (req: Request, res: Response) => {
+	const targetUserId = Number(req.params.users_id);
+
+	if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+		res.status(400).json({
+			error: {
+				code: 'INVALID_USER_ID',
+				message: 'A valid user ID is required',
+			},
+		});
+		return;
+	}
+
 	try {
-		const user = await store.active(req.params.users_id);
-		res.status(200).json(user);
+		const temporaryPassword = generateTemporaryPassword();
+
+		const user = await store.active(
+			targetUserId,
+			temporaryPassword,
+			req.auth!.user_id,
+			req.auth!.role,
+			req.ip
+		);
+
+		res.status(200).json({
+			user,
+			temporary_password: temporaryPassword,
+			must_change_password: true,
+			temporary_password_expires_in: '24 hours',
+			message: 'Save this temporary password now; it will not be shown again',
+		});
 	} catch (error) {
-		res.status(400).json(error);
+		const message = error instanceof Error ? error.message : '';
+
+		if (message === 'INACTIVE_USER_NOT_FOUND') {
+			res.status(404).json({
+				error: {
+					code: 'INACTIVE_USER_NOT_FOUND',
+					message: 'Inactive user not found',
+				},
+			});
+			return;
+		}
+
+		if (message === 'SELF_REACTIVATION_NOT_ALLOWED') {
+			res.status(400).json({
+				error: {
+					code: 'SELF_REACTIVATION_NOT_ALLOWED',
+					message: 'You cannot reactivate your own account',
+				},
+			});
+			return;
+		}
+
+		if (['REACTIVATION_NOT_ALLOWED', 'TARGET_ROLE_NOT_ALLOWED'].includes(message)) {
+			res.status(403).json({
+				error: {
+					code: message,
+					message: 'This account reactivation is not allowed',
+				},
+			});
+			return;
+		}
+
+		res.status(500).json({
+			error: {
+				code: 'REACTIVATION_FAILED',
+				message: 'Unable to reactivate user',
+			},
+		});
 	}
 };
 
@@ -151,10 +292,26 @@ const authenticate = async (req: Request, res: Response) => {
 			must_change_password: u.must_change_password,
 		});
 	} catch (error) {
-		res.status(401).json(error);
+		const message = error instanceof Error ? error.message : '';
+
+		if (message === 'TEMPORARY_PASSWORD_EXPIRED') {
+			res.status(401).json({
+				error: {
+					code: 'TEMPORARY_PASSWORD_EXPIRED',
+					message: 'Temporary password expired. Contact technical support.',
+				},
+			});
+			return;
+		}
+
+		res.status(401).json({
+			error: {
+				code: 'INVALID_CREDENTIALS',
+				message: 'Invalid username or password.',
+			},
+		});
 	}
 };
-
 const changePassword = async (req: Request, res: Response) => {
 	try {
 		const { current_password, new_password } = req.body;
