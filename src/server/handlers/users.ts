@@ -262,30 +262,41 @@ const active = async (req: Request, res: Response) => {
 const authenticate = async (req: Request, res: Response) => {
 	try {
 		const { username, password } = req.body;
+
 		if (typeof username !== 'string' || typeof password !== 'string') {
-			res.status(400).json({ error: 'Username and password are required' });
+			res.status(400).json({
+				error: {
+					code: 'INVALID_LOGIN_REQUEST',
+					message: 'Username and password are required',
+				},
+			});
 			return;
 		}
 
-		const u = await store.authenticate(username, password);
+		const u = await store.authenticate(username, password, req.ip);
+
 		if (!u) {
-			throw new Error('Usuario no encontrado');
+			throw new Error('INVALID_CREDENTIALS');
 		}
+
 		const payload = {
 			user_id: u.user_id,
 			username: u.username,
 			role: u.user_role,
 			token_version: u.token_version,
 		};
+
 		const tokenOptions: SignOptions = {
 			expiresIn: (process.env.TOKEN_EXPIRES_IN || '8h') as SignOptions['expiresIn'],
 		};
+
 		const token = jwt.sign(
 			payload,
 			process.env.TOKEN_SECRET as Secret,
 			tokenOptions
 		);
-		res.json({
+
+		res.status(200).json({
 			token,
 			user_id: u.user_id,
 			role: u.user_role,
@@ -293,6 +304,7 @@ const authenticate = async (req: Request, res: Response) => {
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : '';
+
 		if (message === 'AUTH_SERVICE_UNAVAILABLE') {
 			res.status(503).json({
 				error: {
@@ -302,6 +314,18 @@ const authenticate = async (req: Request, res: Response) => {
 			});
 			return;
 		}
+
+		if (message === 'ACCOUNT_TEMPORARILY_LOCKED') {
+			res.status(429).json({
+				error: {
+					code: 'ACCOUNT_TEMPORARILY_LOCKED',
+					message:
+						'Account temporarily locked after too many failed login attempts. Try again in 15 minutes.',
+				},
+			});
+			return;
+		}
+
 		if (message === 'TEMPORARY_PASSWORD_EXPIRED') {
 			res.status(401).json({
 				error: {
@@ -320,6 +344,7 @@ const authenticate = async (req: Request, res: Response) => {
 		});
 	}
 };
+
 const changePassword = async (req: Request, res: Response) => {
 	try {
 		const { current_password, new_password } = req.body;

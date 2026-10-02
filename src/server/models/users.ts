@@ -365,7 +365,8 @@ export class UserStore {
 
 	async authenticate(
 		username: string,
-		password: string
+		password: string,
+		ipAddress?: string
 	): Promise<AuthenticatedUser | null> {
 		try {
 			const sql = `SELECT u.*, ur.user_role
@@ -381,27 +382,97 @@ export class UserStore {
 			}
 
 			const user = result.rows[0];
+			const now = Date.now();
+
+			if (user.locked_until && new Date(user.locked_until).getTime() > now) {
+				throw new Error('ACCOUNT_TEMPORARILY_LOCKED');
+			}
+
+			if (user.locked_until && new Date(user.locked_until).getTime() <= now) {
+				await Client.query(
+					`UPDATE users
+					 SET failed_login_attempts = 0,
+					     locked_until = NULL,
+					     updated_at = NOW()
+					 WHERE user_id = $1`,
+					[user.user_id]
+				);
+
+				user.failed_login_attempts = 0;
+				user.locked_until = null;
+			}
+
 			const passwordIsValid = await verifyPassword(password, user.password);
 
 			if (!passwordIsValid) {
+				const failedAttempts = user.failed_login_attempts + 1;
+				const shouldLock = failedAttempts >= 5;
+
+				await Client.query(
+					`UPDATE users
+					 SET failed_login_attempts = $1,
+					     locked_until = CASE
+					         WHEN $2 THEN NOW() + INTERVAL '15 minutes'
+					         ELSE NULL
+					     END,
+					     updated_at = NOW()
+					 WHERE user_id = $3`,
+					[failedAttempts, shouldLock, user.user_id]
+				);
+
+				if (shouldLock) {
+					await Client.query(
+						`INSERT INTO audit_logs
+						 (actor_user_id, action, resource_type, resource_id,
+						  ip_address, metadata)
+						 VALUES (NULL, 'ACCOUNT_LOCKED', 'USER', $1, $2, $3::jsonb)`,
+						[
+							String(user.user_id),
+							ipAddress || null,
+							JSON.stringify({
+								reason: 'TOO_MANY_FAILED_LOGIN_ATTEMPTS',
+								failed_login_attempts: failedAttempts,
+								lock_duration_minutes: 15,
+							}),
+						]
+					);
+
+					throw new Error('ACCOUNT_TEMPORARILY_LOCKED');
+				}
+
 				return null;
 			}
 
 			if (
 				user.must_change_password &&
 				user.temporary_password_expires_at &&
-				new Date(user.temporary_password_expires_at).getTime() <= Date.now()
+				new Date(user.temporary_password_expires_at).getTime() <= now
 			) {
 				throw new Error('TEMPORARY_PASSWORD_EXPIRED');
+			}
+
+			if (user.failed_login_attempts > 0 || user.locked_until) {
+				await Client.query(
+					`UPDATE users
+					 SET failed_login_attempts = 0,
+					     locked_until = NULL,
+					     updated_at = NOW()
+					 WHERE user_id = $1`,
+					[user.user_id]
+				);
 			}
 
 			const { password: _passwordHash, ...safeUser } = user;
 			return safeUser as AuthenticatedUser;
 		} catch (error) {
-			if (error instanceof Error && error.message === 'TEMPORARY_PASSWORD_EXPIRED') {
+			if (
+				error instanceof Error &&
+				['TEMPORARY_PASSWORD_EXPIRED', 'ACCOUNT_TEMPORARILY_LOCKED'].includes(
+					error.message
+				)
+			) {
 				throw error;
 			}
-
 			console.error('Authentication service error:', error);
 			throw new Error('AUTH_SERVICE_UNAVAILABLE');
 		}
