@@ -293,7 +293,15 @@ const authenticate = async (req: Request, res: Response) => {
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : '';
-
+		if (message === 'AUTH_SERVICE_UNAVAILABLE') {
+			res.status(503).json({
+				error: {
+					code: 'AUTH_SERVICE_UNAVAILABLE',
+					message: 'Authentication service is temporarily unavailable.',
+				},
+			});
+			return;
+		}
 		if (message === 'TEMPORARY_PASSWORD_EXPIRED') {
 			res.status(401).json({
 				error: {

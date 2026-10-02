@@ -367,16 +367,14 @@ export class UserStore {
 		username: string,
 		password: string
 	): Promise<AuthenticatedUser | null> {
-		const conn = await Client.connect();
-
 		try {
 			const sql = `SELECT u.*, ur.user_role
-		             FROM users AS u
-		             INNER JOIN user_roles AS ur ON u.role_id = ur.role_id
-		             WHERE LOWER(u.username) = LOWER($1)
-		               AND u.status_id = 1`;
+			             FROM users AS u
+			             INNER JOIN user_roles AS ur ON u.role_id = ur.role_id
+			             WHERE LOWER(u.username) = LOWER($1)
+			               AND u.status_id = 1`;
 
-			const result = await conn.query(sql, [username]);
+			const result = await Client.query(sql, [username]);
 
 			if (!result.rows.length) {
 				return null;
@@ -404,9 +402,8 @@ export class UserStore {
 				throw error;
 			}
 
-			throw new Error(`Cannot authenticate the user. Error: ${error}`);
-		} finally {
-			conn.release();
+			console.error('Authentication service error:', error);
+			throw new Error('AUTH_SERVICE_UNAVAILABLE');
 		}
 	}
 
