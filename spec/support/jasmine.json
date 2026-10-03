@@ -1,5 +1,5 @@
 {
-	"spec_dir": "dist/server/models/tests",
+	"spec_dir": "dist/models/tests",
 	"spec_files": ["**/*[sS]pec.js"],
 	"helpers": ["helpers/**/*.js"],
 	"stopSpecOnExpectationFailure": false,
