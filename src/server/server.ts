@@ -2,6 +2,7 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import morgan from 'morgan';
+import healthRoutes from './handlers/health';
 import messageRoutes from './handlers/message';
 import message_usersRoutes from './handlers/message_users';
 import userRoutes from './handlers/users';
@@ -22,6 +23,7 @@ app.get('/', (_req: Request, res: Response) => {
 	res.sendFile(__dirname + '/index.html');
 });
 
+healthRoutes(app);
 userRoutes(app);
 messageRoutes(app);
 message_usersRoutes(app);
