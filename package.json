@@ -41,7 +41,7 @@
 		"watch": "tsc-watch --esModuleInterop src/server/server.ts --outDir ./dist --onSuccess 'node ./dist/server.js'",
 		"migrate": "db-migrate --env test up && db-migrate up",
 		"migrate:up": "db-migrate up",
-		"test": "npm run build && jasmine --config=spec/support/jasmine.json",
+		"test": "npm run build && ENV=test jasmine --config=spec/support/jasmine.json",
 		"tsc": "tsc",
 		"build": "npx tsc",
 		"bootstrap:owner": "ts-node src/server/scripts/bootstrap-owner.ts",
