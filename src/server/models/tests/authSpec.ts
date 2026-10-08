@@ -49,4 +49,24 @@ describe('POST /api/auth/login', () => {
 			message: 'Invalid username or password.',
 		});
 	});
+	it('returns 401 when the temporary password has expired', async () => {
+		await Client.query(
+			`UPDATE users
+			 SET must_change_password = TRUE,
+			     temporary_password_expires_at = NOW() - INTERVAL '1 minute'
+			 WHERE username = $1`,
+			[username]
+		);
+
+		const response = await request(app).post('/api/auth/login').send({
+			username,
+			password,
+		});
+
+		expect(response.status).toBe(401);
+		expect(response.body.error).toEqual({
+			code: 'TEMPORARY_PASSWORD_EXPIRED',
+			message: 'Temporary password expired. Contact technical support.',
+		});
+	});
 });
