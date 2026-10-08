@@ -69,4 +69,70 @@ describe('POST /api/auth/login', () => {
 			message: 'Temporary password expired. Contact technical support.',
 		});
 	});
+	it('locks the account after five incorrect passwords', async () => {
+		await Client.query(
+			`UPDATE users
+			 SET must_change_password = FALSE,
+			     temporary_password_expires_at = NULL,
+			     failed_login_attempts = 0,
+			     locked_until = NULL
+			 WHERE username = $1`,
+			[username]
+		);
+
+		for (let attempt = 1; attempt <= 4; attempt += 1) {
+			const response = await request(app).post('/api/auth/login').send({
+				username,
+				password: 'WrongPassword123!',
+			});
+
+			expect(response.status).toBe(401);
+			expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+		}
+
+		const lockedResponse = await request(app).post('/api/auth/login').send({
+			username,
+			password: 'WrongPassword123!',
+		});
+
+		expect(lockedResponse.status).toBe(429);
+		expect(lockedResponse.body.error.code).toBe('ACCOUNT_TEMPORARILY_LOCKED');
+
+		const result = await Client.query(
+			`SELECT failed_login_attempts, locked_until
+			 FROM users
+			 WHERE username = $1`,
+			[username]
+		);
+
+		expect(result.rows[0].failed_login_attempts).toBe(5);
+		expect(result.rows[0].locked_until).not.toBeNull();
+	});
+	it('allows login after the lock expires and resets failed attempts', async () => {
+		await Client.query(
+			`UPDATE users
+			 SET failed_login_attempts = 5,
+			     locked_until = NOW() - INTERVAL '1 minute'
+			 WHERE username = $1`,
+			[username]
+		);
+
+		const response = await request(app).post('/api/auth/login').send({
+			username,
+			password,
+		});
+
+		expect(response.status).toBe(200);
+		expect(typeof response.body.token).toBe('string');
+
+		const result = await Client.query(
+			`SELECT failed_login_attempts, locked_until
+			 FROM users
+			 WHERE username = $1`,
+			[username]
+		);
+
+		expect(result.rows[0].failed_login_attempts).toBe(0);
+		expect(result.rows[0].locked_until).toBeNull();
+	});
 });
