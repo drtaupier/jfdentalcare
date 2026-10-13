@@ -455,4 +455,107 @@ describe('POST /api/auth/login', () => {
 		);
 		expect(audit.rows.length).toBe(0);
 	});
+	it('returns the authenticated manager profile without password data', async () => {
+		const login = await request(app).post('/api/auth/login').send({
+			username,
+			password,
+		});
+		expect(login.status).toBe(200);
+
+		const response = await request(app)
+			.get('/api/auth/me')
+			.set('Authorization', `Bearer ${login.body.token}`);
+
+		expect(response.status).toBe(200);
+		expect(response.body.user_id).toBe(login.body.user_id);
+		expect(response.body.username).toBe(username);
+		expect(response.body.user_role).toBe('MANAGER');
+		expect(response.body.must_change_password).toBe(false);
+		expect(response.body.password).toBeUndefined();
+		expect(response.body.token_version).toBeUndefined();
+		expect(response.headers['cache-control']).toBe('no-store');
+	});
+
+	it('rejects a profile request without a token', async () => {
+		const response = await request(app).get('/api/auth/me');
+
+		expect(response.status).toBe(401);
+		expect(response.body.username).toBeUndefined();
+	});
+
+	it('returns the required password change status in the profile', async () => {
+		await Client.query(
+			`UPDATE users
+                 SET must_change_password = TRUE,
+                     temporary_password_expires_at = NOW() + INTERVAL '24 hours'
+                 WHERE username = $1`,
+			[username]
+		);
+
+		const login = await request(app).post('/api/auth/login').send({
+			username,
+			password,
+		});
+		expect(login.status).toBe(200);
+
+		const response = await request(app)
+			.get('/api/auth/me')
+			.set('Authorization', `Bearer ${login.body.token}`);
+
+		expect(response.status).toBe(200);
+		expect(response.body.must_change_password).toBe(true);
+	});
+	it('blocks protected routes until the required password change is completed', async () => {
+		await Client.query(
+			`UPDATE users
+                 SET must_change_password = TRUE,
+                     temporary_password_expires_at = NOW() + INTERVAL '24 hours'
+                 WHERE username = $1`,
+			[username]
+		);
+
+		const login = await request(app).post('/api/auth/login').send({
+			username,
+			password,
+		});
+		expect(login.status).toBe(200);
+
+		const blocked = await request(app)
+			.get('/users')
+			.set('Authorization', `Bearer ${login.body.token}`);
+
+		expect(blocked.status).toBe(403);
+		expect(blocked.body.error.code).toBe('PASSWORD_CHANGE_REQUIRED');
+
+		const change = await request(app)
+			.post('/api/auth/change-password')
+			.set('Authorization', `Bearer ${login.body.token}`)
+			.send({
+				current_password: password,
+				new_password: 'Updated456!',
+			});
+		expect(change.status).toBe(200);
+
+		const newLogin = await request(app).post('/api/auth/login').send({
+			username,
+			password: 'Updated456!',
+		});
+		expect(newLogin.status).toBe(200);
+
+		const profile = await request(app)
+			.get('/api/auth/me')
+			.set('Authorization', `Bearer ${newLogin.body.token}`);
+
+		expect(profile.status).toBe(200);
+		expect(profile.body.must_change_password).toBe(false);
+
+		const restricted = await request(app)
+			.get('/users')
+			.set('Authorization', `Bearer ${newLogin.body.token}`);
+
+		expect(restricted.status).toBe(403);
+		expect(restricted.body.error).toBe(
+			'You do not have permission to perform this action'
+		);
+	});
 });

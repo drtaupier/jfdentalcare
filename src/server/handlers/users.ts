@@ -10,6 +10,25 @@ dotenv.config();
 
 const store = new UserStore();
 
+const currentUser = async (req: Request, res: Response) => {
+	res.set('Cache-Control', 'no-store');
+
+	try {
+		const user = await store.currentUser(req.auth!.user_id);
+
+		if (!user) {
+			res.status(401).json({ error: 'Active session user not found' });
+			return;
+		}
+
+		res.status(200).json(user);
+	} catch (error) {
+		res.status(503).json({
+			error: 'Unable to retrieve the current user',
+		});
+	}
+};
+
 const index = async (_req: Request, res: Response) => {
 	try {
 		const users = await store.index();
@@ -435,7 +454,7 @@ const resetPassword = async (req: Request, res: Response) => {
 const userRoutes = (app: express.Application): void => {
 	const administrativeRoles = requireRole('OWNER', 'TECH_SUPPORT', 'ADMIN');
 	const accountManagerRoles = requireRole('OWNER', 'ADMIN');
-
+	app.get('/api/auth/me', verifyAuthToken, currentUser);
 	app.get('/users', verifyAuthToken, administrativeRoles, index);
 	app.get('/user/active', verifyAuthToken, administrativeRoles, activeUsers);
 	app.get('/user/inactive', verifyAuthToken, administrativeRoles, inactiveUsers);

@@ -35,6 +35,20 @@ export type ManagedUserInput = {
 };
 
 export class UserStore {
+	async currentUser(userId: number): Promise<User | null> {
+		const result = await Client.query(
+			`SELECT u.user_id, u.firstname, u.lastname, u.username,
+                        u.display_name, us.status, ur.user_role,
+                        u.must_change_password
+                 FROM users u
+                 JOIN user_roles ur ON u.role_id = ur.role_id
+                 JOIN user_status us ON u.status_id = us.status_id
+                 WHERE u.user_id = $1 AND u.status_id = 1`,
+			[userId]
+		);
+
+		return result.rows[0] || null;
+	}
 	async roleNameById(roleId: number): Promise<string | null> {
 		const conn = await Client.connect();
 		try {
